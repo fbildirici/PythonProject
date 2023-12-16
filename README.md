@@ -18,8 +18,8 @@ The JIRA Release Note Generator is a Python tool designed to automatically fetch
 Clone the repository and install the required Python libraries.
 
 ```bash
-git clone [repository-url]
-cd [repository-directory]
+git clone [[repository-url](https://github.com/fbildirici/PythonProject.git)]
+cd [PythonProject]
 pip install requests
 pip install reportlab
 
