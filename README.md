@@ -9,7 +9,7 @@ The JIRA Release Note Generator is a Python tool designed to automatically fetch
 - Exports release notes in both JSON and PDF formats.
 
 ## Prerequisites
-- Python 3.x
+- Python 3.9
 - Access to a JIRA account with API permissions.
 - `requests` library for Python.
 - `reportlab` library for PDF generation in Python.
