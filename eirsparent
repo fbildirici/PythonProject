@@ -1,0 +1,321 @@
+node('saturn') {
+    def _host = ""
+    def _clean = false
+    def _radarType = ""
+    def _branch = ""
+    def _publish = ""
+    def _tag = ""
+    def _deploy = false
+
+    if(params.containsKey("CleanWorkspace")) {
+        _clean = params.CleanWorkspace
+    }
+    if(params.containsKey("RadarType")) {
+        _radarType=params.RadarType
+    }
+    if(params.containsKey("Branch")) {
+        _branch=params.Branch
+    }
+    if(params.containsKey("Publish")) {
+        _publish =params.Publish
+    }
+    if(params.containsKey("Tag")){
+        _tag =params.Tag
+    }
+    if(params.containsKey("Deploy")){
+        _deploy =params.Deploy
+    }
+
+    if(_clean) {
+        sh" rm -rf /home/hvladmin/.m2/repository/tr/com/havelsan/eirs/*"
+    }
+
+
+    for(String project:"${params.Projects}".split(',')) {
+        if(project.contains("EIRS-ENVIRONMENT-VARIABLES")) {
+            if(_radarType.contains('AIR')) {
+                _branch = 'AIR'
+            }
+            else if(_radarType=='EIRS') {
+                _branch = 'EIRS'
+            }
+            else if(_radarType=='EIRS2') {
+                _branch = 'EIRS2'
+            }
+            else if(_radarType.contains('HTRS')) {
+                _branch = 'htrs'
+            }
+            else if(_radarType.contains('X')) {
+                _branch = 'x'
+            }
+            else if(_radarType.contains('YIR')) {
+                _branch = 'yir'
+            }
+            else if(_radarType.contains('CFAKR')) {
+                _branch = 'cfakr'
+            }
+            else if(_radarType.contains('PEAS')) {
+                _branch = 'peas'
+            }
+            else if(_radarType.contains('PBAS')) {
+                _branch = 'pbas'
+            }
+            else if(_radarType.contains('PYAS')) {
+                _branch = 'pyas'
+            }
+            else if(_radarType.contains('SEIR')) {
+                _branch = 'SEIR'
+            }
+        }
+        else if(project.contains("EIRS-DATA-CONF")) {
+            if(_radarType.contains('AIR')) {
+                _branch = 'EIRS2'
+            }
+            else {
+                _branch = 'master'
+            }
+        }
+        else if(project.contains("EIRS-DESTROY") || project.contains("EIRS-UPDATESH")) {
+            _branch = 'master'
+        }
+        else if(project.contains("EIRS-TY") || project.contains("EIRS-AGENTS") ) {
+            if (_branch == "Development") {
+                _branch = "development"
+            }
+       }  else if(project.contains("EIRS-STANDALONE-JRE-APP") ) {
+                     if (_branch == "EIRS2-dev") {
+                         _branch = "Development"
+                     }
+                     else if (_branch == "EIRS2") {
+                        _branch = "master"
+                     }
+       }
+        else {
+            _branch=params.Branch
+        }
+
+if(_branch.contains("/")){
+            _branch = _branch.replaceAll("/", "%2F")
+            }
+        echo "_branch  " + _branch
+        def myJob
+        if(project != "") {
+        if(project.contains("RESSAM-DEPLOY")) {
+            myJob = build job: project, wait: true, parameters: [string(name: 'Branch', value: "${params.Branch}"),
+            booleanParam(name: 'Checkout', value: "${params.Checkout}"),
+            booleanParam(name: 'Clean_Workspace', value: "${params.CleanWorkspace}"),
+            string(name: 'Select', value: "${params.Branch}"),
+            booleanParam(name: 'Build', value: "${params.Build}"),
+            booleanParam(name: 'Publish', value: "${params.Publish}"),
+            string(name: 'DeploymentEnv', value: "${params.DeploymentEnv}"),
+            string(name: 'Version', value: "${params.Version}")]
+        }
+        else {
+            if(JOB_NAME.contains("7") && project.contains("EIRS-CMN-RKB")){
+                    _publish = false
+            } else {
+            _publish = params.Publish
+            }
+            echo "_publish  " + _publish
+
+            myJob = build job: project+"/"+_branch, wait: true, parameters: [
+            booleanParam(name: 'Checkout', value: "${params.Checkout}"),
+            booleanParam(name: 'Clean_Workspace', value: "${params.CleanWorkspace}"),
+            booleanParam(name: 'Build', value: "${params.Build}"),
+            booleanParam(name: 'Publish', value: _publish),
+            string(name: 'DeploymentEnv', value: "${params.DeploymentEnv}"),
+            string(name: 'Version', value: "${params.Version}")]
+        }
+        echo "${myJob.getResult()}"
+
+        }
+    }
+
+   if(_tag) {
+        stage ('Tag') {
+            if(params.Branch =="master" || params.Branch == "EIRS" ||params.Branch == "EIRS2" || params.Branch == "AIR") {
+                for(String project:"${params.Projects}".split(',')) {
+                    withCredentials([usernamePassword(credentialsId: '22d9e0ef-8f5f-44f2-8df0-302f20c39b5b', passwordVariable: 'PASSWORD', usernameVariable: 'USERNAME')]) {
+                        echo "TAG"
+                        def bitBucket = ""
+
+                        if(project =="EIRS-ENVIRONMENT-VARIABLES" || project == "EIRS-DESTROY"|| project =="EIRS-UPDATESH") {
+                            bitBucket = "http://${USERNAME}:${PASSWORD}@gobitbucket.havelsan.com.tr/scm/eirs/eirs-env-scripts.git"
+                        }
+                        else if(project =="EIRS-COMMON" || project == "CMN-RKB") {
+                            bitBucket = "http://${USERNAME}:${PASSWORD}@gobitbucket.havelsan.com.tr/scm/eirs/eirs-common.git"
+                        }
+                        else if(project =="KKSS/PMW/pmw-fsm") {
+                            bitBucket = "http://${USERNAME}:${PASSWORD}@gobitbucket.havelsan.com.tr/scm/pmw/pmw-fsm.git"
+                        }
+                        else if(project =="EIRS-HES") {
+                            bitBucket = "http://${USERNAME}:${PASSWORD}@gobitbucket.havelsan.com.tr/scm/eirs/hes.git"
+                        }
+                        else if(project =="EIRS-STANDALONE-JRE-APP") {
+                            bitBucket = "http://${USERNAME}:${PASSWORD}@gobitbucket.havelsan.com.tr/scm/standalone-jreap/standalone-jre-app.git"
+                        }
+                        else if(project =="EIRS-DATA-CONF") {
+                            bitBucket = "http://${USERNAME}:${PASSWORD}@gobitbucket.havelsan.com.tr/scm/eirs/eirs-data-config"
+                        }
+                        else if(project =="EIRS-TY") {
+                            bitBucket = "http://${USERNAME}:${PASSWORD}@gobitbucket.havelsan.com.tr/scm/infra/infra-asset"
+                        }
+                        else {
+                            bitBucket = "http://${USERNAME}:${PASSWORD}@gobitbucket.havelsan.com.tr/scm/eirs/"+ project.toLowerCase() + ".git"
+                        }
+
+                        def tagVersion = ""
+                        def version = ""
+                        def pom = ""
+
+                        echo "project: ${project}"
+
+                        if(project =="EIRS-ENVIRONMENT-VARIABLES" || project == "EIRS-DESTROY" || project =="EIRS-UPDATESH" || project =="EIRS-DATA-CONF" || project =="EIRS-RBI-DEPENDENCIES" || project =="EIRS-RKB-DEPENDENCIES" || project == "EIRS-SY-RKB-JNI" || project == "KKSS/PMW/pmw-fsm" || project=="EIRS-STANDALONE-JRE-APP") {
+                            version = params.Version
+                        }
+                        else {
+                            pom = readMavenPom file: '/var/lib/jenkins/workspace/KKSS/EIRS-NEW/'+project+'/'+ params.Branch +'/pom.xml'
+                            version = pom.parent.version
+                            echo "version: ${version}"
+                        }
+
+                        if(params.Branch =="master" || params.Branch == "EIRS" ) {
+                            tagVersion="RKEAS_" + version
+                        }
+                        else if(params.Branch == "EIRS2" || params.Branch == "AIR") {
+                            tagVersion="RKEAS2_" + version
+                        }
+                        echo "tagVersion: ${tagVersion}"
+
+
+                        try {
+                          if(project.contains("EIRS-ENVIRONMENT-VARIABLES")) {
+                                    if(_radarType.contains('AIR')) {
+                                        _branch = 'AIR'
+                                    }
+                                    else if(_radarType=='EIRS') {
+                                        _branch = 'EIRS'
+                                    }
+                                    else if(_radarType =='EIRS2') {
+                                        _branch = 'EIRS2'
+                                    }
+                                    else if(_radarType.contains('HTRS')) {
+                                        _branch = 'htrs'
+                                    }
+                                    else if(_radarType.contains('X')) {
+                                        _branch = 'x'
+                                    }
+                                    else if(_radarType.contains('YIR')) {
+                                        _branch = 'yir'
+                                    }
+                                    else if(_radarType.contains('CFAKR')) {
+                                        _branch = 'cfakr'
+                                    }
+                                    else if(_radarType.contains('PEAS')) {
+                                        _branch = 'peas'
+                                    }
+                                    else if(_radarType.contains('PBAS')) {
+                                        _branch = 'pbas'
+                                    }
+                                    else if(_radarType.contains('PYAS')) {
+                                        _branch = 'pyas'
+                                    }
+                                    else if(_radarType.contains('SEIR')) {
+                                        _branch = 'SEIR'
+                                    }
+                                }
+                                else if(project.contains("EIRS-DATA-CONF")) {
+                                    if(_radarType.contains('AIR')) {
+                                        _branch = 'EIRS2'
+                                    }
+                                    else {
+                                        _branch = 'master'
+                                    }
+                                }
+                                else if(project.contains("EIRS-DESTROY") || project.contains("EIRS-UPDATESH")) {
+                                    _branch = 'master'
+                                }
+                                else if(project.contains("EIRS-TY") || project.contains("EIRS-AGENTS") ) {
+                                    if (_branch == "Development") {
+                                        _branch = "development"
+                                    }
+                               } else if(project.contains("EIRS-STANDALONE-JRE-APP") ) {
+                                              if (_branch == "EIRS2-dev") {
+                                                  _branch = "Development"
+                                              }
+                                              else if (_branch == "EIRS2") {
+                                                 _branch = "master"
+                                              }
+                                }
+                                else {
+                                    _branch=params.Branch
+                                }
+
+                                echo "_branch  " + _branch
+
+                            if(project.contains("pmw-fsm")) {
+                                sh """
+                                    cd  /var/lib/jenkins/workspace/KKSS/PMW/pmw-fsm/${_buildBranch}/
+                                    git tag "${tagVersion}"
+                                    git push -f ${bitBucket} HEAD:${params.Branch} --tags
+                                    git tag -d "${tagVersion}"
+                                """
+                            }
+                            else if(project.contains("EIRS-SY-RKB-JNI")) {
+                                withCredentials([usernamePassword(credentialsId: 'jni', passwordVariable: '_pwd', usernameVariable: '_user')]) {
+                                    sh """
+                                        sshpass -p $_pwd ssh -o StrictHostKeyChecking=no $_user@10.99.0.90 "cd /var/lib/jenkins/workspace/KKSS/EIRS-NEW/${project}/${_branch}/ &&
+                                        git tag "${tagVersion}" && git push -f ${bitBucket} HEAD:${params.Branch} --tags && git tag -d "${tagVersion}" "
+                                    """
+                                }
+                            }
+                            else {
+                                sh """
+                                    cd /var/lib/jenkins/workspace/KKSS/EIRS-NEW/${project}/${_branch}/
+                                    git tag "${tagVersion}"
+                                    git push -f ${bitBucket} HEAD:${params.Branch} --tags
+                                    git tag -d "${tagVersion}"
+                                """
+                            }
+                        }
+                        catch(Exception ex) {
+
+                        }
+                    }
+                }
+            }
+            else {
+                echo "Tag is not done because branch is not master, EIRS, EIRS2 or AIR"
+            }
+        }
+    }
+
+    if(_deploy) {
+    if(params.RBIProjects != "") {
+            def myRBIJob = build job: 'EIRS-RBI-DEPLOY', wait: true, parameters: [
+              string(name: 'Branch', value: "${params.DeploymentPomBranch}"),
+              string(name: 'Select', value: "${params.DeploymentPomBranch}"),
+    	      booleanParam(name: 'CleanConf', value: "${params.CleanRBIEnvironments}"),
+    	      booleanParam(name: 'callFormParent', value: true),
+    	      string(name: 'BuildBranch', value: "${params.Branch}"),
+              string(name: 'Projects', value: "${params.RBIProjects}"),
+              string(name: 'RadarType', value: "${params.RadarType}"),
+              string(name: 'Version', value: "${params.Version}"),
+              string(name: 'DeploymentEnv', value: "${params.RBIDeploymentEnv}")]
+              echo "${myRBIJob.getResult()}"
+}
+if(params.RKBProjects != "") {
+              def myJob = build job: 'EIRS-RKB-DEPLOY', wait: true, parameters: [
+              string(name: 'Branch', value: "${params.DeploymentPomBranch}"),
+              string(name: 'Select', value: "${params.DeploymentPomBranch}"),
+    	      booleanParam(name: 'CleanConf', value: "${params.CleanRKBEnvironments}"),
+    	      booleanParam(name: 'callFormParent', value: true),
+    	      string(name: 'BuildBranch', value: "${params.Branch}"),
+              string(name: 'Projects', value: "${params.RKBProjects}"),
+              string(name: 'RadarType', value: "${params.RadarType}"),
+              string(name: 'Version', value: "${params.Version}"),
+              string(name: 'DeploymentEnv', value: "${params.RKBDeploymentEnv}")]
+              echo "${myJob.getResult()}"
+              }
+    }
+}
